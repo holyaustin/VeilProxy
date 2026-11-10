@@ -1,5 +1,8 @@
 # Installation, extraction and testing (new machine)
 
+> **Python version:** use **3.12** (tested). 3.10 is only the declared minimum and was not tested.
+> On Ubuntu 22.04 the stock `python3` is 3.10 — the bootstrap script installs 3.12 from the deadsnakes PPA.
+
 Total time: ~15-25 minutes (the Rust build is the slow part). Python >= 3.10, Rust (stable), Node 22/24 are needed.
 
 ## 0. Extract
@@ -84,3 +87,4 @@ Smoke test with the real model: `veil demo --live`.
 | 423 vault locked | `/unlock` in the TUI (custodians must be running) |
 | 422 leak_blocked | working as designed; add a rule or allowlist in `config/rules.example.yaml` |
 | Node 23 refuses OmniRoute | use Node 22 LTS or 24 |
+| apt: `python3-venv : Depends: python3 (= 3.10.6-1~22.04)` | stale/mismatched apt lists. Run `sudo apt-get update`, or skip apt Python: install 3.12 via deadsnakes (`bootstrap_ubuntu.sh`) or `uv` (`curl -LsSf https://astral.sh/uv/install.sh \| sh`, then `uv venv --python 3.12 .venv`) |

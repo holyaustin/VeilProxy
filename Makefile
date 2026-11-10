@@ -1,5 +1,6 @@
 # Linux / macOS convenience targets (Windows: see docs/INSTALL.md for the equivalent commands)
-PY ?= python3
+# Prefer python3.12 (tested); override with: make install PY=python3.13
+PY ?= $(shell command -v python3.12 || command -v python3)
 VENV = .venv
 BIN = $(VENV)/bin
 
