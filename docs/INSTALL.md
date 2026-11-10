@@ -77,6 +77,14 @@ Smoke test with the real model: `veil demo --live`.
 - [ ] mitmweb shows the outbound request with placeholders only
 - [ ] `/lock` then a prompt -> "Vault is locked"
 
+## Slow or unreliable internet
+Symptoms: `Read timed out`, `Name or service not known`, `Timeout was reached (Operation too slow)`.
+1. Test: `curl -sS -o /dev/null -w "%{http_code} %{speed_download} B/s\n" https://pypi.org/simple/pip/`
+2. DNS errors: use public DNS (`nmcli con mod "<your-connection>" ipv4.dns "1.1.1.1 8.8.8.8" && nmcli con up "<your-connection>"`).
+3. The Makefile already uses long timeouts and 15 retries. Run the stages separately so a failure only repeats one stage:
+   `make venv && make deps && make rust`. Re-running is safe; completed downloads are cached.
+4. Do **not** run `source .venv/bin/activate` until `make venv` has finished. Do not use `python3.12 -m pip` (system pip); use the venv's.
+
 ## Troubleshooting
 | Symptom | Fix |
 |---|---|
