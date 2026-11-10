@@ -1,0 +1,14 @@
+[build-system]
+requires = ["maturin>=1.5,<2.0"]
+build-backend = "maturin"
+
+[project]
+name = "veil-core"
+version = "0.1.0"
+description = "Rust cryptographic core for VeilProxy"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+
+[tool.maturin]
+module-name = "veil_core"
+features = ["python", "pyo3/extension-module"]

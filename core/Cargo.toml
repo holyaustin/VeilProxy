@@ -1,0 +1,33 @@
+[package]
+name = "veil_core"
+version = "0.1.0"
+edition = "2021"
+description = "VeilProxy cryptographic core: AES-256-GCM, HKDF, Shamir secret sharing, zeroized key custody"
+license = "MIT"
+
+[lib]
+name = "veil_core"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = []
+# Enabled by maturin (see pyproject.toml). Keeps `cargo test` free of libpython.
+python = ["dep:pyo3"]
+
+[dependencies]
+aes-gcm = { version = "0.10", features = ["zeroize"] }
+hkdf = "0.12"
+hmac = "0.12"
+sha2 = "0.10"
+rand = "0.8"
+subtle = "2"
+zeroize = "1"
+hex = "0.4"
+pyo3 = { version = "0.22", features = ["abi3-py39"], optional = true }
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

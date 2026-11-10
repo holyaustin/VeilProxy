@@ -1,0 +1,11 @@
+# Custom detection rules. Point VEIL_RULES_FILE at a copy of this file.
+rules:
+  - kind: PROJECT          # becomes [PROJECT_1], [PROJECT_2] ...
+    literal: "Project Falcon"
+  - kind: EMPID
+    regex: 'EMP-\d{5}'
+  - kind: CLIENT
+    regex: '(?i)\bacme (?:corp|ltd)\b'
+allowlist:                  # never redact these
+  values: ["noreply@example.com", "support@example.com"]
+  regex: ['test@.*\.invalid']

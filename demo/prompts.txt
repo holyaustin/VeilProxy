@@ -1,0 +1,5 @@
+# Paste these into `veil tui` after /unlock. All values are FAKE test data.
+1. Draft a short email to ada.obi@example.com. Mention the invoice is paid with card 4111 1111 1111 1111 and our deploy key is sk-proj-Q8x2LmN4vB7cR1tY9uZ3aW5eD6fG0hJk. My phone is 08031234567.
+2. Summarise this config for a teammate: DATABASE_URL=postgres://admin:s3cr3tpw@db.internal/prod  password: Tr0ub4dor&3xx
+3. Reply to "that email" with a friendlier tone.            (shows placeholder reuse across turns)
+4. Our IBAN is GB82 WEST 1234 5698 7654 32 and AWS key AKIAIOSFODNN7EXAMPLE, is that safe to share?
