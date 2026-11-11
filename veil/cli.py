@@ -131,7 +131,7 @@ def cmd_tui(a) -> int:
     s = _settings(a)
     cfg = VaultConfig.load(s.config_path)
     gc = GatewayClient(f"http://{a.host or s.host}:{a.port or s.port}", cfg.admin_token, s.client_key)
-    VeilApp(gc, model=a.model or s.default_model, session=a.session).run()
+    VeilApp(gc, model=a.model or s.default_model, session=a.session, save_dir=s.home / "transcripts").run()
     return 0
 
 
@@ -150,7 +150,13 @@ def cmd_models(a) -> int:
     s = _settings(a)
     h = {"Authorization": f"Bearer {s.omniroute_api_key}"} if s.omniroute_api_key else {}
     try:
-        r = httpx.get(s.omniroute_base_url + "/models", headers=h, timeout=15)
+        r = httpx.get(s.omniroute_base_url + "/models", headers=h, timeout=60)
+        if r.status_code in (401, 403):
+            print(f"{Y}OmniRoute /models answered HTTP {r.status_code}. Not conclusive: /models is gated by the dashboard-login setting, separately from chat. Run `veil ping` to test the key and model; listing models is optional.{X}")
+            return 1
+        if r.status_code == 503:
+            print(f"{Y}OmniRoute is still building its model catalog ({r.text[:80]}). Wait a minute and retry.{X}")
+            return 1
         r.raise_for_status()
     except Exception as e:
         print(f"{R}cannot list models from {s.omniroute_base_url}: {e}{X}")
@@ -259,6 +265,39 @@ def cmd_selftest(a) -> int:
     return asyncio.run(run())
 
 
+
+# ------------------------------------------------------------------ ping
+def cmd_ping(a) -> int:
+    """Send one tiny NON-sensitive prompt straight to OmniRoute to validate base URL, key and model."""
+    import httpx
+
+    s = _settings(a)
+    model = a.model or s.default_model
+    if not model:
+        print(f"{R}no model: set VEIL_DEFAULT_MODEL or pass --model{X}")
+        return 1
+    h = {"Content-Type": "application/json"}
+    if s.omniroute_api_key:
+        h["Authorization"] = f"Bearer {s.omniroute_api_key}"
+    print(f"POST {s.omniroute_base_url}/chat/completions  model={model}  key={'set' if s.omniroute_api_key else 'EMPTY'}")
+    try:
+        r = httpx.post(s.omniroute_base_url + "/chat/completions", headers=h, timeout=120,
+                       json={"model": model, "max_tokens": 20, "messages": [{"role": "user", "content": "Reply with the single word: OK"}]})
+    except Exception as e:
+        print(f"{R}cannot reach OmniRoute: {type(e).__name__}: {e}{X}")
+        return 1
+    if r.status_code == 200:
+        txt = r.json()["choices"][0]["message"].get("content", "")
+        print(f"{G}✔ OmniRoute works. model replied: {txt!r}{X}")
+        return 0
+    hint = {401: "key rejected: use an OmniRoute endpoint key, or empty if keys aren't required",
+            403: "key lacks access to this model",
+            404: "unknown model id: pick one from `veil models`",
+            429: "rate limited / quota exhausted for that model: try another",
+            503: "OmniRoute not ready or provider unavailable: retry shortly"}.get(r.status_code, "")
+    print(f"{R}✖ HTTP {r.status_code}: {r.text[:300]}{X}\n  {hint}")
+    return 1
+
 # ------------------------------------------------------------------ doctor
 def cmd_doctor(a) -> int:
     import httpx
@@ -288,9 +327,17 @@ def cmd_doctor(a) -> int:
     line(bool(s.default_model), f"VEIL_DEFAULT_MODEL = {s.default_model or '(unset; clients must send a model)'}", warn=True)
     h = {"Authorization": f"Bearer {s.omniroute_api_key}"} if s.omniroute_api_key else {}
     try:
-        r = httpx.get(s.omniroute_base_url + "/models", headers=h, timeout=8)
-        n = len(r.json().get("data", [])) if r.status_code == 200 else 0
-        line(r.status_code == 200, f"OmniRoute {s.omniroute_base_url}  -> HTTP {r.status_code}, {n} models")
+        r = httpx.get(s.omniroute_base_url + "/models", headers=h, timeout=60)
+        if r.status_code == 200:
+            line(True, f"OmniRoute {s.omniroute_base_url}  -> HTTP 200, {len(r.json().get('data', []))} models")
+        elif r.status_code in (401, 403):
+            line(False, f"OmniRoute /models answered HTTP {r.status_code}. This is NOT conclusive: /models is gated by the "
+                        "dashboard-login setting, separately from chat. The real test is: veil ping", warn=True)
+        elif r.status_code == 503:
+            line(False, "OmniRoute is up but still building its model catalog (503 catalog_build_timeout). "
+                        "Retry in a minute; chat may work meanwhile: veil ping", warn=True)
+        else:
+            line(False, f"OmniRoute {s.omniroute_base_url}  -> HTTP {r.status_code}")
     except Exception as e:
         line(False, f"OmniRoute unreachable at {s.omniroute_base_url}: {type(e).__name__}  (is `omniroute` running?)")
     try:
@@ -362,6 +409,9 @@ def main(argv: list[str] | None = None) -> int:
     d.set_defaults(fn=cmd_demo)
 
     sub.add_parser("doctor", help="check the installation").set_defaults(fn=cmd_doctor)
+    pg = sub.add_parser("ping", help="test OmniRoute key + model with one tiny non-sensitive prompt")
+    pg.add_argument("--model")
+    pg.set_defaults(fn=cmd_ping)
     m = sub.add_parser("models", help="list OmniRoute models")
     m.add_argument("--limit", type=int, default=40)
     m.set_defaults(fn=cmd_models)

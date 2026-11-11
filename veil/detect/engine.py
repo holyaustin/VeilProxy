@@ -178,13 +178,14 @@ class Detector:
         if self.entropy:
             for m in _ENTROPY_RE.finditer(text):
                 v = m.group(0)
-                classes = sum(
-                    bool(re.search(p, v)) for p in (r"[a-z]", r"[A-Z]", r"\d", r"[+/_=-]")
-                )
-                if (
-                    re.search(r"\d", v) and re.search(r"[A-Za-z]", v) and classes >= 3
-                    and shannon(v) >= self.entropy_threshold and not self._allowed(v)
-                ):
+                if self._allowed(v):
+                    continue
+                has_l, has_u, has_d = (bool(re.search(p, v)) for p in (r"[a-z]", r"[A-Z]", r"\d"))
+                # random-looking mixed-case alphanumerics (base64/random tokens) ...
+                mixed = has_l and has_u and has_d and shannon(v) >= self.entropy_threshold
+                # ... or long hex strings (keys, hashes). Plain kebab-case words / model ids are NOT flagged.
+                hexkey = len(v) >= 32 and re.fullmatch(r"[0-9a-fA-F]+", v) is not None and shannon(v) >= 3.0
+                if mixed or hexkey:
                     yield Match(m.start(), m.end(), "SECRET", v, 20, "entropy")
 
     def find(self, text: str, structured_only: bool = False) -> list[Match]:

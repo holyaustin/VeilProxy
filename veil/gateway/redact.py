@@ -29,15 +29,18 @@ def map_strings(obj: Any, fn: Callable[[str], str], skip: set[str] = SKIP_KEYS, 
     return obj
 
 
-def iter_strings(obj: Any) -> Iterable[str]:
+def iter_strings(obj: Any, skip: set[str] = SKIP_KEYS, _key: str | None = None, _path: str = "$"):
+    """Yield (path, string) for every user-content string leaf (structural keys like `model` are skipped,
+    exactly as in redaction, so the guard and the redactor always look at the same data)."""
     if isinstance(obj, str):
-        yield obj
+        if _key not in skip:
+            yield _path, obj
     elif isinstance(obj, list):
-        for x in obj:
-            yield from iter_strings(x)
+        for i, x in enumerate(obj):
+            yield from iter_strings(x, skip, _key, f"{_path}[{i}]")
     elif isinstance(obj, dict):
-        for v in obj.values():
-            yield from iter_strings(v)
+        for k, v in obj.items():
+            yield from iter_strings(v, skip, k, f"{_path}.{k}")
 
 
 @dataclass
@@ -80,15 +83,19 @@ class Redactor:
 
 
 def check_outbound(payload: dict, values: Iterable[str], detector: Detector) -> None:
-    """Fail closed if any redacted value, or anything the detector still flags, remains."""
+    """Fail closed if any redacted value, or anything the detector still flags, remains.
+    Error messages name the location and kind only, never the value."""
     vals = [v for v in values if v]
-    for s in iter_strings(payload):
+    for path, s in iter_strings(payload):
         for v in vals:
             if v in s:
-                raise LeakBlocked("a detected secret survived redaction")
+                raise LeakBlocked(f"a detected secret survived redaction at {path}")
         left = detector.find(s, structured_only=True)
         if left:
-            raise LeakBlocked(f"detector still flags {left[0].kind} in the outbound payload")
+            raise LeakBlocked(
+                f"detector still flags {left[0].kind} ({left[0].end - left[0].start} chars) at {path}; "
+                f"add it to the allowlist in your rules file if it is a false positive"
+            )
 
 
 # ------------------------------------------------------------------ rehydration

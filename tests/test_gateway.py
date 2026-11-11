@@ -103,6 +103,10 @@ async def test_fail_closed_guard_blocks_if_redaction_breaks(env, monkeypatch):
     r = await env.chat(PROMPT)
     assert r.status_code == 422 and r.json()["error"]["type"] == "leak_blocked"
     assert env.log == []
+    msg = r.json()["error"]["message"]
+    assert "$" in msg and EMAIL not in msg and KEY not in msg   # says where, never what
+    row = (await env.client.get("/admin/audit", headers=env.admin)).json()[0]
+    assert row["status"] == 422 and row["outbound"] is None and "BLOCKED" in row["note"]
 
 
 async def test_lock_then_requests_fail(env):
@@ -162,3 +166,31 @@ async def test_secrets_in_multipart_and_tool_content_are_redacted(env):
     r = await env.client.post("/v1/chat/completions", json=body)
     assert r.status_code == 200
     assert EMAIL not in sent_text(env) and KEY not in sent_text(env)
+
+
+async def test_audit_row_exists_before_upstream_replies(tmp_path):
+    """The TUI shows the provider view while the model is still thinking, so the row must pre-exist."""
+    e = make_env(tmp_path)
+    await e.unlock()
+    seen = {}
+
+    def handler(request):
+        rows = e.app.state.ctx.store.list_audit(1)
+        seen["row"] = rows[0] if rows else None
+        return httpx.Response(200, json={"id": "x", "model": "m", "choices": [
+            {"index": 0, "message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}]})
+
+    e.app.state.ctx.client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://x/v1/")
+    await e.chat(f"mail {EMAIL}")
+    assert seen["row"] and seen["row"]["status"] is None and "[EMAIL_1]" in seen["row"]["outbound"]
+    assert EMAIL not in seen["row"]["outbound"]
+    final = e.app.state.ctx.store.list_audit(1)[0]
+    assert final["status"] == 200 and final["upstream_id"] == "x"
+    await e.client.aclose()
+
+
+async def test_high_entropy_model_id_is_not_blocked(env):
+    await env.unlock()
+    body = {"model": "agy/claude-opus-4-6-thinking", "messages": [{"role": "user", "content": "hello"}]}
+    r = await env.client.post("/v1/chat/completions", json=body)
+    assert r.status_code == 200 and env.log[-1]["model"] == "agy/claude-opus-4-6-thinking"

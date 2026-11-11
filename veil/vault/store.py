@@ -92,6 +92,19 @@ class Store:
             self._db.commit()
             return int(cur.lastrowid)
 
+    def update_audit(self, audit_id: int, **f) -> None:
+        cols = {"status", "latency_ms", "upstream_id", "upstream_model", "usage", "note"}
+        sets, vals = [], []
+        for k, v in f.items():
+            if k in cols and v is not None:
+                sets.append(f"{k}=?")
+                vals.append(json.dumps(v) if k == "usage" else v)
+        if not sets:
+            return
+        with self._lock:
+            self._db.execute(f"UPDATE audit SET {', '.join(sets)} WHERE id=?", (*vals, audit_id))
+            self._db.commit()
+
     def list_audit(self, limit: int = 20, session: str | None = None) -> list[dict]:
         q = "SELECT * FROM audit"
         args: list = []

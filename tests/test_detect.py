@@ -40,6 +40,8 @@ def test_detects(text, kind, value):
     "localhost 127.0.0.1 and 0.0.0.0",
     "[EMAIL_1] wrote to [EMAIL_2]",                  # placeholders are never re-redacted
     "internationalization-and-localization-helpers",  # long but low entropy, no digits
+    "agy/claude-opus-4-6-thinking",                   # model ids are not secrets
+    "use claude-sonnet-4-6-medium or gemini-3-flash-preview-high",
 ])
 def test_no_false_positive(text):
     assert D.find(text) == [], D.find(text)

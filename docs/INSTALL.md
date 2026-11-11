@@ -77,6 +77,14 @@ Smoke test with the real model: `veil demo --live`.
 - [ ] mitmweb shows the outbound request with placeholders only
 - [ ] `/lock` then a prompt -> "Vault is locked"
 
+## OmniRoute: `401 Unauthorized` or `catalog_build_timeout`
+- **401** = the key in `.env` is not accepted. `OMNIROUTE_API_KEY` must be an **OmniRoute endpoint key** created in the OmniRoute
+  dashboard (not a provider key like OpenAI/Anthropic). If OmniRoute does not require keys, leave it empty. Also check
+  `echo $OMNIROUTE_API_KEY`: a key exported in your shell overrides `.env`. Test directly with `veil ping`.
+- **503 catalog_build_timeout** = OmniRoute is still building its model list (slow first build or slow provider calls).
+  Wait a minute and retry `curl http://localhost:20128/v1/models`. You do not need `/v1/models` to chat: `veil ping` tests
+  a real completion with your `VEIL_DEFAULT_MODEL`.
+
 ## Slow or unreliable internet
 Symptoms: `Read timed out`, `Name or service not known`, `Timeout was reached (Operation too slow)`.
 1. Test: `curl -sS -o /dev/null -w "%{http_code} %{speed_download} B/s\n" https://pypi.org/simple/pip/`

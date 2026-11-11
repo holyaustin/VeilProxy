@@ -140,6 +140,9 @@ def create_app(
         except VaultLocked as e:
             return _err(423, str(e), "vault_locked")
         except LeakBlocked as e:
+            ctx.store.add_audit(session=session, model=body.get("model") or ctx.settings.default_model,
+                                stream=bool(body.get("stream")), status=422, detections=[], outbound=None,
+                                note=f"BLOCKED locally, nothing was sent: {e}"[:400])
             return _err(422, f"VeilProxy blocked the request (fail-closed): {e}", "leak_blocked")
 
         stream = bool(out.get("stream"))
@@ -149,19 +152,20 @@ def create_app(
         audit = dict(session=session, model=out["model"], stream=stream, detections=dets,
                      outbound=outbound, note=note)
         hdr = {"X-Veil-Redactions": str(len(dets)), "X-Veil-Session": session}
+        audit_id = ctx.store.add_audit(**audit)  # visible to the TUI immediately (status pending)
 
         try:
             req = ctx.client.build_request("POST", "chat/completions", json=out)
             resp = await ctx.client.send(req, stream=stream)
         except httpx.HTTPError as e:
-            ctx.store.add_audit(**{**audit, "note": f"upstream error: {e}"}, status=502,
-                                latency_ms=int((time.monotonic() - t0) * 1000))
+            ctx.store.update_audit(audit_id, status=502, latency_ms=int((time.monotonic() - t0) * 1000),
+                                   note=f"upstream error: {e}"[:300])
             return _err(502, f"OmniRoute unreachable at {ctx.settings.omniroute_base_url}: {e}", "upstream_unreachable")
 
         if resp.status_code >= 400:
             raw = await resp.aread() if stream else resp.content
             await resp.aclose()
-            ctx.store.add_audit(**audit, status=resp.status_code, latency_ms=int((time.monotonic() - t0) * 1000))
+            ctx.store.update_audit(audit_id, status=resp.status_code, latency_ms=int((time.monotonic() - t0) * 1000))
             try:
                 payload = json.loads(raw)
             except ValueError:
@@ -171,8 +175,8 @@ def create_app(
         if not stream:
             data = resp.json()
             data = map_strings(data, lambda s: rehydrate_text(s, resolve))
-            ctx.store.add_audit(
-                **audit, status=resp.status_code, latency_ms=int((time.monotonic() - t0) * 1000),
+            ctx.store.update_audit(
+                audit_id, status=resp.status_code, latency_ms=int((time.monotonic() - t0) * 1000),
                 upstream_id=data.get("id"), upstream_model=data.get("model"), usage=data.get("usage"),
             )
             return JSONResponse(data, headers=hdr)
@@ -242,8 +246,8 @@ def create_app(
                     yield "data: " + json.dumps(chunk, ensure_ascii=False) + "\n\n"
             finally:
                 await resp.aclose()
-                ctx.store.add_audit(
-                    **audit, status=resp.status_code, latency_ms=int((time.monotonic() - t0) * 1000),
+                ctx.store.update_audit(
+                    audit_id, status=resp.status_code, latency_ms=int((time.monotonic() - t0) * 1000),
                     upstream_id=meta.get("id"), upstream_model=meta.get("model"), usage=meta.get("usage"),
                 )
 
