@@ -1,7 +1,13 @@
+<p align="center">
+  <img src="images/veilproxy-logo.png" alt="VeilProxy + ShardKey logo" width="420">
+</p>
+
 # VeilProxy + ShardKey
 
-A **local, secrets-redacting gateway** for OpenAI-compatible LLM APIs (built for **OmniRoute**),
-with a **Shamir-protected master key**. Hackathon track: *AI pipeline secret sharing*.
+A **local, secrets-redacting gateway** for OpenAI-compatible LLM APIs (built for **OmniRoute**), with a **Shamir-protected master key**. Hackathon track: *AI pipeline secret sharing*.
+
+
+Youtube Demo : https://youtu.be/rsodzb4blu8
 
 ```
  you / any OpenAI client ──► VeilProxy (127.0.0.1:8787) ──► OmniRoute (:20128/v1) ──► any provider model
@@ -37,6 +43,10 @@ veil tui                          # terminal C  ->  /unlock, then chat
 veil doctor                       # checks everything
 ```
 No OmniRoute yet? `veil mock-omniroute` starts an echo server on :20128 (clearly a mock, not an LLM).
+
+![VeilProxy logo](images/v2.png)
+![VeilProxy logo](images/v3.png)
+![VeilProxy logo](images/v4.png)
 
 ## Use it from any OpenAI client
 Point the client at `http://127.0.0.1:8787/v1` (any key, or `VEIL_CLIENT_KEY`). Optional header
